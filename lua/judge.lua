@@ -1,11 +1,9 @@
----@class Validator
+---@class judge.Validator
 ---@field validate fun(obj: any): boolean, string
+local Validator = {}
 
----@class judge.Constraint: Validator
-local Constraint = {}
-
----@return judge.Constraint
-function Constraint.optional(validator)
+---@return judge.Validator
+function Validator.optional(validator)
 	return setmetatable({
 		validate = function(obj)
 			if obj == nil then
@@ -16,8 +14,8 @@ function Constraint.optional(validator)
 	}, getmetatable(validator))
 end
 
----@return judge.Constraint
-function Constraint.min_length(validator, length)
+---@return judge.Validator
+function Validator.min_length(validator, length)
 	return setmetatable({
 		validate = function(obj)
 			if #obj < length then
@@ -28,8 +26,8 @@ function Constraint.min_length(validator, length)
 	}, getmetatable(validator))
 end
 
----@return judge.Constraint
-function Constraint.max_length(validator, length)
+---@return judge.Validator
+function Validator.max_length(validator, length)
 	return setmetatable({
 		validate = function(obj)
 			if #obj > length then
@@ -40,8 +38,8 @@ function Constraint.max_length(validator, length)
 	}, getmetatable(validator))
 end
 
----@return judge.Constraint
-function Constraint.matches(validator, pattern)
+---@return judge.Validator
+function Validator.matches(validator, pattern)
 	return setmetatable({
 		validate = function(obj)
 			if not string.match(obj, pattern) then
@@ -52,8 +50,8 @@ function Constraint.matches(validator, pattern)
 	}, getmetatable(validator))
 end
 
----@return judge.Constraint
-function Constraint.enum(validator, values)
+---@return judge.Validator
+function Validator.enum(validator, values)
 	return setmetatable({
 		validate = function(obj)
 			for _, v in ipairs(values) do
@@ -66,7 +64,7 @@ function Constraint.enum(validator, values)
 	}, getmetatable(validator))
 end
 
-function Constraint.array(validator)
+function Validator.array(validator)
 	return setmetatable({
 		validate = function(obj)
 			for _, v in ipairs(obj) do
@@ -80,21 +78,21 @@ function Constraint.array(validator)
 	}, getmetatable(validator))
 end
 
----@class judge.Atom: judge.Constraint
+---@class judge.Atom: judge.Validator
 
-local Judge = {}
+local judge = {}
 
 local atom_mt = {
 	---@return fun(...): judge.Atom
 	__index = function(self, k)
 		return function(...)
-			return Constraint[k](self, ...)
+			return Validator[k](self, ...)
 		end
 	end,
 }
 
 ---@return judge.Atom
-function Judge.object(schema)
+function judge.object(schema)
 	return setmetatable({
 		validate = function(obj)
 			for k, validator in pairs(schema) do
@@ -109,7 +107,7 @@ function Judge.object(schema)
 end
 
 ---@return judge.Atom
-function Judge.array(elements, length)
+function judge.array(elements, length)
 	return setmetatable({
 		validate = function(obj)
 			if type(obj) ~= "table" then
@@ -130,7 +128,7 @@ function Judge.array(elements, length)
 end
 
 ---@return judge.Atom
-function Judge.map(key, value)
+function judge.map(key, value)
 	return setmetatable({
 		validate = function(obj)
 			if type(obj) ~= "table" then
@@ -152,7 +150,7 @@ function Judge.map(key, value)
 end
 
 ---@return judge.Atom
-function Judge.string()
+function judge.string()
 	return setmetatable({
 		validate = function(obj)
 			local ok = type(obj) == "string"
@@ -164,4 +162,42 @@ function Judge.string()
 	}, atom_mt)
 end
 
-return Judge
+---@return judge.Atom
+function judge.number()
+	return setmetatable({
+		validate = function(obj)
+			local ok = type(obj) == "number"
+			if not ok then
+				return false, "not a number"
+			end
+			return true
+		end,
+	}, atom_mt)
+end
+
+---@return judge.Atom
+function judge.any()
+	return setmetatable({
+		validate = function()
+			return true
+		end,
+	}, atom_mt)
+end
+
+---@return judge.Atom
+function judge.one_of(...)
+	local validators = { ... }
+	return setmetatable({
+		validate = function(obj)
+			for _, validator in ipairs(validators) do
+				local ok = validator.validate(obj)
+				if ok then
+					return true
+				end
+			end
+			return false, "no valid validator"
+		end,
+	}, atom_mt)
+end
+
+return judge
